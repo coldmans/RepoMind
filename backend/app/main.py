@@ -1,4 +1,4 @@
-# backend/app/main.py (기존 내용에 추가)
+# backend/app/main.py (기존 내용에 추가/수정)
 
 from fastapi import FastAPI, HTTPException
 import os
@@ -7,6 +7,7 @@ import logging
 
 # services 모듈 임포트
 from app.services.github_service import clone_repository, get_repo_files, read_file_content
+from app.services.code_parser import chunk_text, get_file_language # 새로 추가/수정
 
 # 로그 설정 (개발용)
 logging.basicConfig(level=logging.INFO)
@@ -28,14 +29,14 @@ async def read_root():
 async def health_check():
     return {"status": "ok"}
 
-@app.post("/repo/clone")
-async def clone_and_list_repo(
+@app.post("/repo/process") # 엔드포인트 이름을 clone에서 process로 변경하는 것도 고려
+async def process_repo(
     repo_url: str,
     repo_name: str, # 클론될 로컬 폴더 이름으로 사용
     branch: str = "main"
 ):
     """
-    지정된 GitHub 레포지토리를 클론하고, 클론된 레포지토리의 파일 목록을 반환합니다.
+    지정된 GitHub 레포지토리를 클론하고, 파일을 읽어 청크로 분할하여 반환합니다.
     """
     if not GITHUB_PAT:
         raise HTTPException(status_code=400, detail="GITHUB_PAT 환경 변수가 설정되지 않았습니다. 개인 액세스 토큰을 .env 파일에 추가해주세요.")
@@ -45,28 +46,34 @@ async def clone_and_list_repo(
     # 레포지토리 저장 디렉토리가 없으면 생성
     REPOS_DIR.mkdir(parents=True, exist_ok=True)
 
+    logger.info(f"레포지토리 {repo_url} 클론 또는 업데이트 시작.")
     success = clone_repository(repo_url, local_repo_path, branch, GITHUB_PAT)
 
     if not success:
         raise HTTPException(status_code=500, detail=f"레포지토리 클론 또는 업데이트 실패: {repo_url}")
 
+    logger.info(f"레포지토리 {repo_name} 파일 스캔 시작.")
     file_paths = get_repo_files(local_repo_path)
 
-    # 파일 내용까지 읽는 예시 (실제 사용 시에는 청크 분할 로직에서 처리)
-    file_contents = []
+    all_chunks = []
     for path in file_paths:
         content = read_file_content(path)
         if content:
-            # 너무 긴 내용은 잘라내서 예시로 보여줌
-            file_contents.append({
-                "path": str(path.relative_to(local_repo_path)),
-                "size": len(content),
-                "content_preview": content[:200] + "..." if len(content) > 200 else content
-            })
+            # 파일 내용을 청크로 분할
+            chunks_from_file = chunk_text(content, path, repo_name)
+            all_chunks.extend(chunks_from_file)
+        else:
+            logger.warning(f"파일 내용 읽기 실패 또는 비어있음: {path}")
 
+    logger.info(f"총 {len(file_paths)}개 파일에서 {len(all_chunks)}개 청크 생성 완료.")
+
+    # 너무 많은 청크를 응답으로 보내면 API 응답이 너무 커질 수 있으니,
+    # 실제 구현에서는 이 결과를 바로 벡터 DB에 저장하는 방식으로 넘어갈 겁니다.
+    # 여기서는 테스트를 위해 일부만 보여줍니다.
     return {
-        "message": f"레포지토리 {repo_name} 클론 및 파일 목록 가져오기 성공",
+        "message": f"레포지토리 {repo_name} 처리 및 청크 생성 완료",
         "repo_path": str(local_repo_path),
         "total_files": len(file_paths),
-        "files": file_contents
+        "total_chunks": len(all_chunks),
+        "sample_chunks": all_chunks[:5] # 처음 5개 청크만 미리보기
     }
