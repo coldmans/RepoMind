@@ -12,26 +12,3 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GITHUB_PAT: ${GITHUB_PAT}
-  # 2. 벡터 데이터베이스 서비스 (예: ChromaDB 서버 버전) - 선택 사항, 처음엔 필요 없을 수 있음
-  # ChromaDB는 파이썬 라이브러리로 직접 사용하는 경우가 많아 별도 서버가 필요 없을 수도 있습니다.
-  # 만약 Qdrant 같은 별도 서버형 벡터 DB를 사용한다면 여기에 추가합니다.
-  #chroma_db_server:
-  #  image: chromadb/chroma:latest # ChromaDB 공식 Docker 이미지
-  #  ports:
-  #    - "8001:8000" # ChromaDB 기본 포트
-  #  volumes:
-  #    - ./data/chroma_db:/chroma/data # 데이터를 영속적으로 저장할 볼륨
-
-  # 3. 디스코드 봇 서비스 (나중에 추가)
-  # discord_bot:
-  #   build:
-  #     context: ./discord_bot
-  #     dockerfile: Dockerfile
-  #   environment:
-  #     DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
-  #     BACKEND_API_URL: http://backend:8000 # Docker Compose 네트워크 내에서 백엔드 서비스 이름으로 접근
-  #   # restart: unless-stopped # 봇이 죽으면 자동으로 다시 시작
-
-#volumes:
-  # 위에서 정의한 명명된 볼륨이 필요하다면 여기에 추가 (예: chroma_data_volume:)
-  # 하지만 위 예시처럼 바인드 마운트 (./path:/container/path)가 더 흔합니다.
