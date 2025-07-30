@@ -4,3 +4,4 @@ requests
 openai #anthropic
 chromadb
 GitPython
+httpx

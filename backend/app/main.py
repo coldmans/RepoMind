@@ -11,6 +11,7 @@ from app.services.github_service import clone_repository, get_repo_files, read_f
 from app.services.code_parser import chunk_text # AST 파싱은 일단 제외하고 단순 청크 사용
 from app.services.embedding_service import get_embeddings # 새로 추가
 from app.services.vector_db_service import add_documents_to_collection, query_collection # 새로 추가
+from app.services.llm_service import generate_response_from_context
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -118,36 +119,48 @@ async def process_repo(
 
 # --- (추가 API: 벡터 DB에서 쿼리하는 엔드포인트) ---
 @app.post("/repo/query")
-async def query_repo(query_text: str, n_results: int = 5, repo_name: str = None):
+async def query_repo(query_text: str, repo_name: str = None, n_results: int = 5):
     """
-    벡터 DB에 저장된 레포지토리 정보에 대해 질의하고 관련 청크를 반환합니다.
+    벡터 DB에 저장된 레포지토리 정보에 대해 질의하고 AI 답변을 반환합니다.
     """
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=400, detail="OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
 
-    # 쿼리 텍스트에 대한 임베딩 생성
+    logger.info(f"쿼리 '{query_text}'에 대한 임베딩 생성 시작.")
     try:
         query_embedding = await get_embeddings([query_text])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"쿼리 임베딩 생성 중 오류 발생: {e}")
 
-    # 메타데이터 필터링 조건
+    logger.info(f"벡터 DB에서 관련 컨텍스트 검색 시작 (쿼리: '{query_text}').")
     where_clause = {}
     if repo_name:
         where_clause["repo_name"] = repo_name
 
-    # 벡터 DB에서 쿼리 실행
     try:
-        results = await query_collection(
+        context_results = await query_collection(
             CHROMA_COLLECTION_NAME,
-            query_embeddings=query_embedding, # 쿼리 텍스트가 아닌 임베딩을 직접 전달
+            query_embeddings=query_embedding,
             n_results=n_results,
             where=where_clause if where_clause else None
         )
-        return {
-            "message": "쿼리 결과",
-            "query": query_text,
-            "results": results
-        }
+        logger.info(f"벡터 DB에서 {len(context_results)}개 컨텍스트 청크 검색 완료.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"벡터 DB 쿼리 중 오류 발생: {e}")
+
+    logger.info(f"AI 모델을 사용하여 답변 생성 시작 (쿼리: '{query_text}').")
+    try:
+        ai_response = await generate_response_from_context(query_text, context_results)
+        logger.info("AI 답변 생성 완료.")
+        return {
+            "message": "AI 답변",
+            "query": query_text,
+            "ai_response": ai_response,
+            "source_chunks_count": len(context_results),
+            "source_chunks": context_results
+        }
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"AI 답변 생성 중 예상치 못한 오류 발생: {e}")
+        raise HTTPException(status_code=500, detail=f"AI 답변 생성 중 오류 발생: {e}")
