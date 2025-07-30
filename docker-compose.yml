@@ -12,3 +12,25 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GITHUB_PAT: ${GITHUB_PAT}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://backend:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s # 서비스 시작 후 health check를 시작하기 전 대기 시간
+
+  discord_bot:
+    build:
+      context: ./discord_bot # discord_bot/Dockerfile을 사용
+      dockerfile: Dockerfile
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN} # .env 파일에서 로드
+      BACKEND_API_URL: http://backend:8000 # Docker Compose 네트워크 내에서 백엔드 서비스 이름으로 접근
+    # 봇이 백엔드 서비스가 준비될 때까지 기다리도록 설정
+    depends_on:
+      backend:
+        condition: service_healthy # 백엔드 서비스의 health check가 통과될 때까지 기다림
+    # 봇 컨테이너가 예기치 않게 종료되면 자동으로 다시 시작
+    restart: unless-stopped
+    # 백엔드 서비스의 health check 설정 (backend 서비스 아래에 추가)
+
