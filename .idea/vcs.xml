@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/data/repos/Megabox" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/data/repos/RepoMind" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/data/repos/algo" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/data/repos/algorithm" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/data/repos/repo" vcs="Git" />
+  </component>
+</project>
